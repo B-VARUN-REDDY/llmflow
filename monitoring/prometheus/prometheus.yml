@@ -1,0 +1,46 @@
+# Prometheus Configuration for LLMFlow Gateway
+
+# Global settings
+global:
+  # How often to scrape targets (default: 1m)
+  scrape_interval: 15s
+  
+  # How often to evaluate rules (default: 1m)
+  evaluation_interval: 15s
+  
+  # How long until a scrape request times out
+  scrape_timeout: 10s
+
+# Scrape configurations
+scrape_configs:
+  # ============================================================================
+  # LLM Gateway Metrics
+  # ============================================================================
+  - job_name: 'llmflow-gateway'
+    
+    # This tells Prometheus WHERE to scrape metrics from
+    static_configs:
+      - targets: ['gateway:8000']
+        labels:
+          service: 'gateway'
+          environment: 'development'
+    
+    # The path where metrics are exposed
+    metrics_path: '/metrics'
+    
+    # Scrape interval for this specific job (overrides global)
+    scrape_interval: 15s
+
+  # ============================================================================
+  # Prometheus Self-Monitoring
+  # ============================================================================
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+        labels:
+          service: 'prometheus'
+
+# Note: In production, you'd add:
+# - Alert rules (when to fire alerts)
+# - Remote write configs (send metrics to long-term storage)
+# - Service discovery (instead of static configs)
