@@ -20,6 +20,7 @@ from monitoring.metrics import (
     llm_gateway_info,
     record_request
 )
+from providers.ollama_client import OllamaClient
 
 # Configure logging
 logging.basicConfig(
@@ -73,6 +74,9 @@ class QueryResponse(BaseModel):
 # LIFECYCLE MANAGEMENT
 # ============================================================================
 
+# Global Ollama client instance
+ollama_client: OllamaClient = None
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """
@@ -84,8 +88,21 @@ async def lifespan(app: FastAPI):
     - Initializing connections (Redis, PostgreSQL)
     - Cleanup on shutdown
     """
+    global ollama_client
+    
     # STARTUP
     logger.info("🚀 LLMFlow Gateway starting up...")
+    
+    # Initialize Ollama client
+    ollama_client = OllamaClient(base_url=settings.ollama_base_url)
+    
+    # Check if Ollama is healthy
+    if await ollama_client.check_health():
+        logger.info("✅ Ollama connection successful")
+        models = await ollama_client.list_models()
+        logger.info(f"Available models: {models}")
+    else:
+        logger.warning("⚠️ Ollama not responding - check if container is running")
     
     # Set gateway info (static metadata)
     llm_gateway_info.info({
@@ -99,6 +116,7 @@ async def lifespan(app: FastAPI):
     
     # SHUTDOWN
     logger.info("👋 LLMFlow Gateway shutting down...")
+    await ollama_client.close()
 
 
 # ============================================================================
@@ -154,13 +172,10 @@ async def query(request: QueryRequest):
     
     This is where all the magic happens:
     1. Increment active requests gauge
-    2. Check cache
-    3. If miss, route to appropriate provider
+    2. Check cache (Phase 2)
+    3. Route to appropriate provider
     4. Record metrics
     5. Return response
-    
-    For Phase 1, we're building the STRUCTURE without full functionality.
-    We'll add real routing, caching, and provider calls in later phases.
     """
     # Start timing
     start_time = time.time()
@@ -169,38 +184,37 @@ async def query(request: QueryRequest):
     llm_active_requests.inc()
     
     try:
-        # PHASE 1: Dummy response
-        # We're focusing on metrics instrumentation first
-        # Real LLM calls come in Phase 2
-        
         logger.info(f"Received query: {request.prompt[:50]}...")
         
-        # Simulate processing
-        await simulate_llm_call()
+        # Call Ollama with real LLM inference
+        result = await ollama_client.generate(
+            prompt=request.prompt,
+            model="llama3.2:1b"
+        )
         
         # Calculate latency
         latency = time.time() - start_time
         
         # Record metrics
         record_request(
-            provider="ollama",  # Hardcoded for Phase 1
+            provider="ollama",
             status="success",
             duration=latency,
             cache_hit=False,
-            tokens=150  # Dummy value
+            tokens=result["tokens"]
         )
         
-        # Return dummy response
+        # Build response
         response = QueryResponse(
-            response="This is a dummy response. Real LLM integration coming in Phase 2!",
+            response=result["response"],
             provider="ollama",
-            model="llama3.1",
+            model=result["model"],
             cached=False,
             latency_ms=latency * 1000,
-            tokens_used=150
+            tokens_used=result["tokens"]
         )
         
-        logger.info(f"Query processed in {latency*1000:.2f}ms")
+        logger.info(f"Query processed in {latency*1000:.2f}ms, {result['tokens']} tokens")
         
         return response
         
@@ -208,7 +222,7 @@ async def query(request: QueryRequest):
         # Record error
         latency = time.time() - start_time
         record_request(
-            provider="unknown",
+            provider="ollama",
             status="error",
             duration=latency,
             cache_hit=False,
@@ -221,22 +235,6 @@ async def query(request: QueryRequest):
     finally:
         # Always decrement active requests
         llm_active_requests.dec()
-
-
-async def simulate_llm_call():
-    """
-    Simulate LLM call latency for testing.
-    
-    In Phase 1, we use this to generate realistic metrics
-    without actually calling LLMs yet.
-    
-    This will be removed once we integrate real providers.
-    """
-    import asyncio
-    import random
-    
-    # Simulate 200-500ms latency
-    await asyncio.sleep(random.uniform(0.2, 0.5))
 
 
 @app.get("/metrics")
@@ -266,7 +264,7 @@ if __name__ == "__main__":
     import uvicorn
     
     uvicorn.run(
-        "gateway.main:app",
+        "main:app",
         host="0.0.0.0",
         port=settings.gateway_port,
         reload=True,  # Auto-reload on code changes

@@ -1,0 +1,563 @@
+{
+    "dashboard": {
+        "title": "LLMFlow - System Overview",
+        "uid": "llmflow-overview",
+        "tags": [
+            "llmflow",
+            "overview"
+        ],
+        "timezone": "browser",
+        "schemaVersion": 38,
+        "version": 1,
+        "refresh": "5s",
+        "time": {
+            "from": "now-15m",
+            "to": "now"
+        },
+        "panels": [
+            {
+                "id": 1,
+                "type": "stat",
+                "title": "Requests per Second",
+                "gridPos": {
+                    "h": 6,
+                    "w": 6,
+                    "x": 0,
+                    "y": 0
+                },
+                "targets": [
+                    {
+                        "expr": "rate(llm_requests_total[1m])",
+                        "legendFormat": "req/s",
+                        "refId": "A"
+                    }
+                ],
+                "fieldConfig": {
+                    "defaults": {
+                        "color": {
+                            "mode": "thresholds"
+                        },
+                        "thresholds": {
+                            "mode": "absolute",
+                            "steps": [
+                                {
+                                    "color": "green",
+                                    "value": null
+                                },
+                                {
+                                    "color": "yellow",
+                                    "value": 5
+                                },
+                                {
+                                    "color": "red",
+                                    "value": 10
+                                }
+                            ]
+                        },
+                        "unit": "reqps"
+                    }
+                }
+            },
+            {
+                "id": 2,
+                "type": "stat",
+                "title": "Success Rate",
+                "gridPos": {
+                    "h": 6,
+                    "w": 6,
+                    "x": 6,
+                    "y": 0
+                },
+                "targets": [
+                    {
+                        "expr": "sum(rate(llm_requests_total{status=\"success\"}[5m])) / sum(rate(llm_requests_total[5m])) * 100",
+                        "legendFormat": "Success %",
+                        "refId": "A"
+                    }
+                ],
+                "fieldConfig": {
+                    "defaults": {
+                        "color": {
+                            "mode": "thresholds"
+                        },
+                        "thresholds": {
+                            "mode": "absolute",
+                            "steps": [
+                                {
+                                    "color": "red",
+                                    "value": null
+                                },
+                                {
+                                    "color": "yellow",
+                                    "value": 95
+                                },
+                                {
+                                    "color": "green",
+                                    "value": 99
+                                }
+                            ]
+                        },
+                        "unit": "percent",
+                        "max": 100
+                    }
+                }
+            },
+            {
+                "id": 3,
+                "type": "stat",
+                "title": "Cache Hit Rate",
+                "gridPos": {
+                    "h": 6,
+                    "w": 6,
+                    "x": 12,
+                    "y": 0
+                },
+                "targets": [
+                    {
+                        "expr": "sum(rate(llm_cache_hits_total[5m])) / (sum(rate(llm_cache_hits_total[5m])) + sum(rate(llm_cache_misses_total[5m]))) * 100",
+                        "legendFormat": "Hit Rate %",
+                        "refId": "A"
+                    }
+                ],
+                "fieldConfig": {
+                    "defaults": {
+                        "color": {
+                            "mode": "thresholds"
+                        },
+                        "thresholds": {
+                            "mode": "absolute",
+                            "steps": [
+                                {
+                                    "color": "red",
+                                    "value": null
+                                },
+                                {
+                                    "color": "yellow",
+                                    "value": 30
+                                },
+                                {
+                                    "color": "green",
+                                    "value": 50
+                                }
+                            ]
+                        },
+                        "unit": "percent",
+                        "max": 100
+                    }
+                }
+            },
+            {
+                "id": 4,
+                "type": "stat",
+                "title": "Active Requests",
+                "gridPos": {
+                    "h": 6,
+                    "w": 6,
+                    "x": 18,
+                    "y": 0
+                },
+                "targets": [
+                    {
+                        "expr": "llm_active_requests",
+                        "legendFormat": "Active",
+                        "refId": "A"
+                    }
+                ],
+                "fieldConfig": {
+                    "defaults": {
+                        "color": {
+                            "mode": "thresholds"
+                        },
+                        "thresholds": {
+                            "mode": "absolute",
+                            "steps": [
+                                {
+                                    "color": "green",
+                                    "value": null
+                                },
+                                {
+                                    "color": "yellow",
+                                    "value": 10
+                                },
+                                {
+                                    "color": "red",
+                                    "value": 50
+                                }
+                            ]
+                        },
+                        "unit": "short"
+                    }
+                }
+            },
+            {
+                "id": 5,
+                "type": "timeseries",
+                "title": "Request Rate Over Time",
+                "gridPos": {
+                    "h": 8,
+                    "w": 12,
+                    "x": 0,
+                    "y": 6
+                },
+                "targets": [
+                    {
+                        "expr": "rate(llm_requests_total[1m])",
+                        "legendFormat": "Total req/s",
+                        "refId": "A"
+                    },
+                    {
+                        "expr": "rate(llm_requests_total{status=\"success\"}[1m])",
+                        "legendFormat": "Success req/s",
+                        "refId": "B"
+                    },
+                    {
+                        "expr": "rate(llm_requests_total{status=\"error\"}[1m])",
+                        "legendFormat": "Error req/s",
+                        "refId": "C"
+                    }
+                ],
+                "fieldConfig": {
+                    "defaults": {
+                        "custom": {
+                            "drawStyle": "line",
+                            "lineInterpolation": "smooth",
+                            "fillOpacity": 10
+                        },
+                        "unit": "reqps"
+                    },
+                    "overrides": [
+                        {
+                            "matcher": {
+                                "id": "byName",
+                                "options": "Error req/s"
+                            },
+                            "properties": [
+                                {
+                                    "id": "color",
+                                    "value": {
+                                        "mode": "fixed",
+                                        "fixedColor": "red"
+                                    }
+                                }
+                            ]
+                        }
+                    ]
+                },
+                "options": {
+                    "legend": {
+                        "displayMode": "list",
+                        "placement": "bottom"
+                    }
+                }
+            },
+            {
+                "id": 6,
+                "type": "timeseries",
+                "title": "Latency Percentiles",
+                "gridPos": {
+                    "h": 8,
+                    "w": 12,
+                    "x": 12,
+                    "y": 6
+                },
+                "targets": [
+                    {
+                        "expr": "histogram_quantile(0.50, sum by (le)(rate(llm_request_duration_seconds_bucket[5m])))",
+                        "legendFormat": "p50 (median)",
+                        "refId": "A"
+                    },
+                    {
+                        "expr": "histogram_quantile(0.95, sum by (le)(rate(llm_request_duration_seconds_bucket[5m])))",
+                        "legendFormat": "p95",
+                        "refId": "B"
+                    },
+                    {
+                        "expr": "histogram_quantile(0.99, sum by (le)(rate(llm_request_duration_seconds_bucket[5m])))",
+                        "legendFormat": "p99",
+                        "refId": "C"
+                    }
+                ],
+                "fieldConfig": {
+                    "defaults": {
+                        "custom": {
+                            "drawStyle": "line",
+                            "lineInterpolation": "smooth",
+                            "fillOpacity": 0
+                        },
+                        "unit": "s"
+                    },
+                    "overrides": [
+                        {
+                            "matcher": {
+                                "id": "byName",
+                                "options": "p99"
+                            },
+                            "properties": [
+                                {
+                                    "id": "color",
+                                    "value": {
+                                        "mode": "fixed",
+                                        "fixedColor": "red"
+                                    }
+                                }
+                            ]
+                        }
+                    ]
+                },
+                "options": {
+                    "legend": {
+                        "displayMode": "list",
+                        "placement": "bottom"
+                    }
+                }
+            },
+            {
+                "id": 7,
+                "type": "piechart",
+                "title": "Requests by Provider",
+                "gridPos": {
+                    "h": 8,
+                    "w": 8,
+                    "x": 0,
+                    "y": 14
+                },
+                "targets": [
+                    {
+                        "expr": "sum by (provider)(llm_requests_total)",
+                        "legendFormat": "{{provider}}",
+                        "refId": "A"
+                    }
+                ],
+                "options": {
+                    "legend": {
+                        "displayMode": "table",
+                        "placement": "right"
+                    },
+                    "pieType": "pie"
+                }
+            },
+            {
+                "id": 8,
+                "type": "timeseries",
+                "title": "Cache Performance",
+                "gridPos": {
+                    "h": 8,
+                    "w": 8,
+                    "x": 8,
+                    "y": 14
+                },
+                "targets": [
+                    {
+                        "expr": "rate(llm_cache_hits_total[1m])",
+                        "legendFormat": "Cache Hits/s",
+                        "refId": "A"
+                    },
+                    {
+                        "expr": "rate(llm_cache_misses_total[1m])",
+                        "legendFormat": "Cache Misses/s",
+                        "refId": "B"
+                    }
+                ],
+                "fieldConfig": {
+                    "defaults": {
+                        "custom": {
+                            "drawStyle": "line",
+                            "lineInterpolation": "smooth",
+                            "fillOpacity": 20,
+                            "stacking": {
+                                "mode": "normal"
+                            }
+                        },
+                        "unit": "ops"
+                    },
+                    "overrides": [
+                        {
+                            "matcher": {
+                                "id": "byName",
+                                "options": "Cache Hits/s"
+                            },
+                            "properties": [
+                                {
+                                    "id": "color",
+                                    "value": {
+                                        "mode": "fixed",
+                                        "fixedColor": "green"
+                                    }
+                                }
+                            ]
+                        },
+                        {
+                            "matcher": {
+                                "id": "byName",
+                                "options": "Cache Misses/s"
+                            },
+                            "properties": [
+                                {
+                                    "id": "color",
+                                    "value": {
+                                        "mode": "fixed",
+                                        "fixedColor": "orange"
+                                    }
+                                }
+                            ]
+                        }
+                    ]
+                }
+            },
+            {
+                "id": 9,
+                "type": "stat",
+                "title": "Total Requests (24h)",
+                "gridPos": {
+                    "h": 4,
+                    "w": 4,
+                    "x": 16,
+                    "y": 14
+                },
+                "targets": [
+                    {
+                        "expr": "sum(increase(llm_requests_total[24h]))",
+                        "refId": "A"
+                    }
+                ],
+                "fieldConfig": {
+                    "defaults": {
+                        "color": {
+                            "mode": "thresholds"
+                        },
+                        "thresholds": {
+                            "mode": "absolute",
+                            "steps": [
+                                {
+                                    "color": "green",
+                                    "value": null
+                                }
+                            ]
+                        },
+                        "unit": "short"
+                    }
+                }
+            },
+            {
+                "id": 10,
+                "type": "stat",
+                "title": "Total Tokens Used",
+                "gridPos": {
+                    "h": 4,
+                    "w": 4,
+                    "x": 20,
+                    "y": 14
+                },
+                "targets": [
+                    {
+                        "expr": "sum(llm_tokens_used_total)",
+                        "refId": "A"
+                    }
+                ],
+                "fieldConfig": {
+                    "defaults": {
+                        "color": {
+                            "mode": "thresholds"
+                        },
+                        "thresholds": {
+                            "mode": "absolute",
+                            "steps": [
+                                {
+                                    "color": "blue",
+                                    "value": null
+                                }
+                            ]
+                        },
+                        "unit": "short"
+                    }
+                }
+            },
+            {
+                "id": 11,
+                "type": "stat",
+                "title": "Avg Latency (5m)",
+                "gridPos": {
+                    "h": 4,
+                    "w": 4,
+                    "x": 16,
+                    "y": 18
+                },
+                "targets": [
+                    {
+                        "expr": "histogram_quantile(0.50, sum by (le)(rate(llm_request_duration_seconds_bucket[5m])))",
+                        "refId": "A"
+                    }
+                ],
+                "fieldConfig": {
+                    "defaults": {
+                        "color": {
+                            "mode": "thresholds"
+                        },
+                        "thresholds": {
+                            "mode": "absolute",
+                            "steps": [
+                                {
+                                    "color": "green",
+                                    "value": null
+                                },
+                                {
+                                    "color": "yellow",
+                                    "value": 0.5
+                                },
+                                {
+                                    "color": "red",
+                                    "value": 1
+                                }
+                            ]
+                        },
+                        "unit": "s",
+                        "decimals": 3
+                    }
+                }
+            },
+            {
+                "id": 12,
+                "type": "stat",
+                "title": "Error Rate",
+                "gridPos": {
+                    "h": 4,
+                    "w": 4,
+                    "x": 20,
+                    "y": 18
+                },
+                "targets": [
+                    {
+                        "expr": "sum(rate(llm_requests_total{status=\"error\"}[5m])) / sum(rate(llm_requests_total[5m])) * 100",
+                        "refId": "A"
+                    }
+                ],
+                "fieldConfig": {
+                    "defaults": {
+                        "color": {
+                            "mode": "thresholds"
+                        },
+                        "thresholds": {
+                            "mode": "absolute",
+                            "steps": [
+                                {
+                                    "color": "green",
+                                    "value": null
+                                },
+                                {
+                                    "color": "yellow",
+                                    "value": 1
+                                },
+                                {
+                                    "color": "red",
+                                    "value": 5
+                                }
+                            ]
+                        },
+                        "unit": "percent",
+                        "max": 100
+                    }
+                }
+            }
+        ]
+    }
+}

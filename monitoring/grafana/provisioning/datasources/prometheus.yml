@@ -1,0 +1,18 @@
+# Grafana Data Source Configuration
+# This auto-configures Prometheus as a data source when Grafana starts
+
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: true
+    jsonData:
+      timeInterval: "15s"
+      # Query timeout
+      queryTimeout: "60s"
+      # HTTP method for queries
+      httpMethod: "POST"
