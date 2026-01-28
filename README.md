@@ -74,12 +74,12 @@ llmflow/
 │   ├── config.py             # Configuration management
 │   ├── monitoring/           # Prometheus metrics
 │   ├── routers/              # Request routing logic (coming soon)
-│   └── providers/            # LLM provider clients (coming soon)
+│   └── providers/            # LLM provider clients
 ├── monitoring/
 │   ├── prometheus/           # Prometheus config
-│   └── grafana/              # Dashboard definitions (coming soon)
-├── simulator/                # Traffic generation (coming soon)
-├── docs/                     # Documentation (coming soon)
+│   └── grafana/              # Dashboard definitions
+├── simulator/                # Traffic generation
+├── docs/                     # Documentation
 ├── tests/                    # Test suite (coming soon)
 └── docker-compose.yml        # Service orchestration
 ```
@@ -93,10 +93,12 @@ llmflow/
 - [x] Docker Compose orchestration
 - [x] Basic health checks and testing
 
-### Phase 1B: Monitoring Stack (In Progress)
-- [ ] Grafana dashboard setup
-- [ ] Real Ollama integration
-- [ ] End-to-end query flow
+### Phase 1B: Monitoring Stack (90% Complete) 🔄
+- [x] Grafana dashboard provisioning configured
+- [x] Real Ollama integration (llama3.2:1b)
+- [x] End-to-end query flow working
+- [x] Traffic generator with 4 scenarios
+- [ ] Dashboard data visualization (troubleshooting)
 
 ### Phase 2: Multi-Provider Routing (Planned)
 - [ ] Complexity classifier
@@ -152,10 +154,9 @@ docker-compose down -v
 ## Documentation
 
 See [docs/](./docs/) for detailed documentation:
-- Architecture overview (coming soon)
-- API reference (coming soon)
-- Deployment guide (coming soon)
-- Metrics guide (coming soon)
+- [Quick Start Guide](./docs/QUICKSTART.md)
+- [Metrics Guide](./docs/METRICS_GUIDE.md)
+- [Session Log](./docs/SESSION_LOG.md)
 
 ## Contributing
 
@@ -172,4 +173,4 @@ MIT License - See LICENSE file for details
 
 **Built to demonstrate production ML engineering capabilities for portfolio purposes.**
 
-Last Updated: January 27, 2026
+Last Updated: January 28, 2026
