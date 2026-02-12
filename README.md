@@ -10,30 +10,50 @@
 
 This project showcases production ML engineering skills:
 - ✅ Multi-provider LLM routing with intelligent complexity classification
-- ✅ Multi-layer caching (exact + semantic)
+- ✅ Redis caching (24,000x speedup on cached queries)
 - ✅ Comprehensive monitoring (Prometheus + Grafana)
-- ✅ Realistic traffic simulation for testing
+- ✅ Fallback handling for provider resilience
 - ✅ Production-quality architecture (Docker, async, error handling)
 
 ## Tech Stack
 
 - **LLM Providers:** Ollama (local), Groq API, Google Gemini
 - **Gateway:** FastAPI (async)
-- **Caching:** Redis
+- **Caching:** Redis (exact-match, 1-hour TTL)
 - **Monitoring:** Prometheus + Grafana
 - **Database:** PostgreSQL
-- **Orchestration:** Docker Compose
+- **Orchestration:** Docker Compose (6 services)
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                    LLMFlow Gateway                      │
+│                                                         │
+│  Query ──► Cache Check ──► Complexity Classifier        │
+│                │                    │                    │
+│            HIT │              ┌─────┼─────┐             │
+│             ▼  │              ▼     ▼     ▼             │
+│           Redis│          Ollama  Groq  Gemini          │
+│                │         (simple)(medium)(complex)       │
+│                │              │     │     │              │
+│                │              └─────┼─────┘              │
+│                │                    ▼                    │
+│                │              Cache Store               │
+│                └──────────► Response ──► Metrics         │
+└─────────────────────────────────────────────────────────┘
+```
 
 ## Quick Start
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/llmflow
+git clone https://github.com/B-VARUN-REDDY/llmflow
 cd llmflow
 
 # Setup environment
 cp .env.example .env
-# Edit .env and add your API keys (optional for Ollama-only)
+# Edit .env and add your GROQ_API_KEY and GEMINI_API_KEY (optional)
 
 # Start all services
 docker-compose up -d --build
@@ -49,78 +69,120 @@ docker-compose logs -f gateway
 
 Once running:
 - **Gateway API:** http://localhost:8000/docs (Interactive API docs)
-- **Prometheus:** http://localhost:9090 (Metrics & queries)
-- **Grafana:** http://localhost:3000 (Dashboards - admin/admin)
 - **Health Check:** http://localhost:8000/health
+- **Cache Stats:** http://localhost:8000/cache/stats
+- **Prometheus:** http://localhost:9090
+- **Grafana:** http://localhost:3000 (admin/admin)
 
-## Quick Test
+## API Examples
 
 ```bash
-# Send a test query
+# Simple query (auto-routes to Ollama)
 curl -X POST http://localhost:8000/query \
   -H "Content-Type: application/json" \
-  -d '{"prompt": "What is machine learning?"}'
+  -d '{"prompt": "What is 2+2?"}'
 
-# View metrics
-curl http://localhost:8000/metrics
+# Complex query (auto-routes to Gemini/Groq)
+curl -X POST http://localhost:8000/query \
+  -H "Content-Type: application/json" \
+  -d '{"prompt": "Analyze microservices vs monolithic architectures"}'
+
+# Force a specific provider
+curl -X POST http://localhost:8000/query \
+  -H "Content-Type: application/json" \
+  -d '{"prompt": "Hello", "provider": "groq"}'
+
+# Check health with provider + cache status
+curl http://localhost:8000/health
+
+# View cache stats
+curl http://localhost:8000/cache/stats
+
+# Clear cache
+curl -X POST http://localhost:8000/cache/clear
 ```
+
+## Intelligent Routing
+
+Queries are classified by complexity (0-100) and routed to the optimal provider:
+
+| Complexity | Score | Provider | Why |
+|-----------|-------|----------|-----|
+| Simple | 0-30 | Ollama (local) | Free, fast for simple tasks |
+| Medium | 31-70 | Groq (llama-3.3-70b) | Free tier, very fast inference |
+| Complex | 71-100 | Gemini (2.0-flash) | Best reasoning for hard queries |
+
+If the primary provider fails, the router automatically falls back through a chain of alternatives.
+
+## Caching Performance
+
+| Metric | Value |
+|--------|-------|
+| Cache MISS (full LLM call) | ~5,000-30,000ms |
+| Cache HIT (Redis lookup) | ~1ms |
+| Speedup | **24,000x** |
+| TTL | 1 hour (configurable) |
+| Strategy | Exact-match (SHA-256 hash) |
 
 ## Project Structure
 
 ```
 llmflow/
 ├── gateway/                   # FastAPI application
-│   ├── main.py               # App entry point
-│   ├── config.py             # Configuration management
-│   ├── monitoring/           # Prometheus metrics
-│   ├── routers/              # Request routing logic (coming soon)
-│   └── providers/            # LLM provider clients
+│   ├── main.py               # App entry point + routes
+│   ├── config.py             # Environment configuration
+│   ├── Dockerfile            # Gateway container
+│   ├── monitoring/
+│   │   └── metrics.py        # Prometheus metrics definitions
+│   ├── providers/
+│   │   ├── ollama_client.py  # Local Ollama provider
+│   │   ├── groq_client.py    # Groq cloud provider
+│   │   └── gemini_client.py  # Google Gemini provider
+│   └── routers/
+│       ├── complexity_classifier.py  # Query analysis (0-100)
+│       ├── llm_router.py     # Routing + fallback logic
+│       └── cache_manager.py  # Redis caching layer
 ├── monitoring/
-│   ├── prometheus/           # Prometheus config
-│   └── grafana/              # Dashboard definitions
-├── simulator/                # Traffic generation
+│   ├── prometheus/
+│   │   └── prometheus.yml    # Scrape configuration
+│   └── grafana/
+│       └── dashboards/       # Pre-built dashboards
+├── simulator/                # Traffic generation tools
 ├── docs/                     # Documentation
-├── tests/                    # Test suite (coming soon)
-└── docker-compose.yml        # Service orchestration
+├── docker-compose.yml        # 6-service orchestration
+├── .env.example              # Environment template
+└── README.md
 ```
 
 ## Development Status
 
-### Phase 1: Foundation ✅ COMPLETED
-- [x] Project structure initialized
+### Phase 1: Foundation ✅
 - [x] FastAPI gateway with async handling
-- [x] Prometheus metrics instrumentation
-- [x] Docker Compose orchestration
-- [x] Basic health checks and testing
+- [x] Prometheus metrics instrumentation (11 metrics)
+- [x] Docker Compose orchestration (6 services)
+- [x] Ollama integration with llama3.2:1b
+- [x] Grafana dashboards (8 panels)
 
-### Phase 1B: Monitoring Stack (90% Complete) 🔄
-- [x] Grafana dashboard provisioning configured
-- [x] Real Ollama integration (llama3.2:1b)
-- [x] End-to-end query flow working
-- [x] Traffic generator with 4 scenarios
-- [ ] Dashboard data visualization (troubleshooting)
-
-### Phase 2: Multi-Provider Routing (Planned)
-- [ ] Complexity classifier
-- [ ] Router logic (Ollama/Groq/Gemini)
-- [ ] Redis caching layer
-- [ ] Provider fallback handling
+### Phase 2: Multi-Provider Routing ✅
+- [x] Complexity classifier (heuristic, score 0-100)
+- [x] Router logic (Ollama → Groq → Gemini)
+- [x] Provider fallback handling
+- [x] Redis exact-match caching (24,000x speedup)
+- [x] Cache stats + clear endpoints
 
 ### Phase 3: Advanced Features (Planned)
-- [ ] Semantic caching
+- [ ] Semantic caching (similar query matching)
 - [ ] Prompt compression
-- [ ] Traffic simulator
-- [ ] Cost tracking dashboard
+- [ ] Cost tracking per provider
+- [ ] Advanced traffic simulator
 
 ### Phase 4: Polish (Planned)
-- [ ] Comprehensive documentation
+- [ ] Comprehensive test suite
 - [ ] Architecture diagrams
 - [ ] Demo mode
 - [ ] Portfolio video
 
-## Current Metrics
-
-The gateway currently tracks:
+## Metrics Tracked
 
 | Metric | Type | Purpose |
 |--------|------|---------|
@@ -130,40 +192,27 @@ The gateway currently tracks:
 | `llm_cache_misses_total` | Counter | Cache miss rate |
 | `llm_tokens_used_total` | Counter | Token consumption by provider |
 | `llm_active_requests` | Gauge | Current concurrent requests |
-| `llm_routing_decisions_total` | Counter | Routing distribution |
+| `llm_routing_decisions_total` | Counter | Routing distribution by complexity |
+| `llm_gateway_info` | Info | Gateway version & config |
 
 ## Useful Commands
 
 ```bash
-# Start services
-docker-compose up -d
-
-# Stop services
-docker-compose down
-
-# Rebuild after code changes
+# Start all services
 docker-compose up -d --build
 
+# Stop all services
+docker-compose down
+
 # View logs
-docker-compose logs -f [service_name]
+docker-compose logs -f gateway
 
 # Remove all data and start fresh
 docker-compose down -v
+
+# Check service status
+docker-compose ps
 ```
-
-## Documentation
-
-See [docs/](./docs/) for detailed documentation:
-- [Quick Start Guide](./docs/QUICKSTART.md)
-- [Metrics Guide](./docs/METRICS_GUIDE.md)
-- [Session Log](./docs/SESSION_LOG.md)
-
-## Contributing
-
-This is a portfolio project, but feedback is welcome! Feel free to open issues for:
-- Bug reports
-- Feature suggestions
-- Documentation improvements
 
 ## License
 
@@ -171,6 +220,6 @@ MIT License - See LICENSE file for details
 
 ---
 
-**Built to demonstrate production ML engineering capabilities for portfolio purposes.**
+**Built to demonstrate production ML engineering capabilities.**
 
-Last Updated: January 28, 2026
+Last Updated: February 11, 2026
