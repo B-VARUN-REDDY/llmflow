@@ -21,6 +21,9 @@ from monitoring.metrics import (
     record_request
 )
 from providers.ollama_client import OllamaClient
+from providers.groq_client import GroqClient
+from providers.gemini_client import GeminiClient
+from routers.llm_router import LLMRouter
 
 # Configure logging
 logging.basicConfig(
@@ -41,11 +44,11 @@ class QueryRequest(BaseModel):
     Example:
     {
         "prompt": "What is the capital of France?",
-        "model": "auto"  # or specify: "ollama", "groq", "gemini"
+        "provider": "auto"  # or specify: "ollama", "groq", "gemini"
     }
     """
     prompt: str
-    model: str = "auto"  # Default: let the router decide
+    provider: str = "auto"  # Default: let the router decide
 
 
 class QueryResponse(BaseModel):
@@ -56,10 +59,13 @@ class QueryResponse(BaseModel):
     {
         "response": "The capital of France is Paris.",
         "provider": "ollama",
-        "model": "llama3.1",
+        "model": "llama3.2:1b",
         "cached": false,
         "latency_ms": 450,
-        "tokens_used": 150
+        "tokens_used": 150,
+        "complexity_score": 25,
+        "complexity_category": "simple",
+        "fallback_used": false
     }
     """
     response: str
@@ -68,49 +74,78 @@ class QueryResponse(BaseModel):
     cached: bool
     latency_ms: float
     tokens_used: int
+    complexity_score: int = 0
+    complexity_category: str = "unknown"
+    fallback_used: bool = False
 
 
 # ============================================================================
 # LIFECYCLE MANAGEMENT
 # ============================================================================
 
-# Global Ollama client instance
+# Global client instances
 ollama_client: OllamaClient = None
+groq_client: GroqClient = None
+gemini_client: GeminiClient = None
+llm_router: LLMRouter = None
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """
     Lifecycle manager for the application.
     
-    This runs once at startup and once at shutdown.
-    Perfect for:
-    - Setting static metrics (version info)
-    - Initializing connections (Redis, PostgreSQL)
-    - Cleanup on shutdown
+    Initializes all LLM providers and the intelligent router.
     """
-    global ollama_client
+    global ollama_client, groq_client, gemini_client, llm_router
     
     # STARTUP
     logger.info("🚀 LLMFlow Gateway starting up...")
     
-    # Initialize Ollama client
+    # Initialize Ollama (always available)
     ollama_client = OllamaClient(base_url=settings.ollama_base_url)
-    
-    # Check if Ollama is healthy
     if await ollama_client.check_health():
         logger.info("✅ Ollama connection successful")
         models = await ollama_client.list_models()
-        logger.info(f"Available models: {models}")
+        logger.info(f"   Available models: {models}")
     else:
         logger.warning("⚠️ Ollama not responding - check if container is running")
     
+    # Initialize Groq (if API key provided)
+    if settings.groq_api_key:
+        try:
+            groq_client = GroqClient(api_key=settings.groq_api_key)
+            logger.info("✅ Groq client initialized")
+        except Exception as e:
+            logger.warning(f"⚠️ Groq initialization failed: {e}")
+    else:
+        logger.info("ℹ️ Groq API key not provided - provider unavailable")
+    
+    # Initialize Gemini (if API key provided)
+    if settings.gemini_api_key:
+        try:
+            gemini_client = GeminiClient(api_key=settings.gemini_api_key)
+            logger.info("✅ Gemini client initialized")
+        except Exception as e:
+            logger.warning(f"⚠️ Gemini initialization failed: {e}")
+    else:
+        logger.info("ℹ️ Gemini API key not provided - provider unavailable")
+    
+    # Initialize router with available providers
+    llm_router = LLMRouter(
+        ollama_client=ollama_client,
+        groq_client=groq_client,
+        gemini_client=gemini_client
+    )
+    
     # Set gateway info (static metadata)
     llm_gateway_info.info({
-        'version': '0.1.0',
-        'environment': 'development'
+        'version': '0.2.0',
+        'environment': 'development',
+        'providers': ','.join([k for k, v in llm_router.providers_available.items() if v])
     })
     
     logger.info("✅ Gateway ready to accept requests")
+    logger.info(f"📊 Active providers: {[k for k, v in llm_router.providers_available.items() if v]}")
     
     yield  # Application runs here
     
@@ -126,7 +161,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="LLMFlow Gateway",
     description="Production LLM Gateway with Cost Intelligence",
-    version="0.1.0",
+    version="0.2.0",
     lifespan=lifespan
 )
 
@@ -143,39 +178,35 @@ async def root():
     return {
         "service": "LLMFlow Gateway",
         "status": "healthy",
-        "version": "0.1.0"
+        "version": "0.2.0"
     }
 
 
 @app.get("/health")
 async def health():
     """
-    Detailed health check.
-    
-    In production, this would check:
-    - Redis connection
-    - PostgreSQL connection
-    - LLM provider availability
-    
-    For now, it's simple.
+    Detailed health check with provider status.
     """
+    provider_status = llm_router.get_provider_status() if llm_router else {}
+    
     return {
         "status": "healthy",
-        "active_requests": llm_active_requests._value._value
+        "active_requests": llm_active_requests._value._value,
+        "providers": provider_status
     }
 
 
 @app.post("/query", response_model=QueryResponse)
 async def query(request: QueryRequest):
     """
-    Main LLM query endpoint.
+    Main LLM query endpoint with intelligent routing.
     
-    This is where all the magic happens:
-    1. Increment active requests gauge
-    2. Check cache (Phase 2)
-    3. Route to appropriate provider
-    4. Record metrics
-    5. Return response
+    Flow:
+    1. Classify query complexity
+    2. Route to optimal provider
+    3. Handle fallbacks if needed
+    4. Record comprehensive metrics
+    5. Return enriched response
     """
     # Start timing
     start_time = time.time()
@@ -186,10 +217,11 @@ async def query(request: QueryRequest):
     try:
         logger.info(f"Received query: {request.prompt[:50]}...")
         
-        # Call Ollama with real LLM inference
-        result = await ollama_client.generate(
+        # Route query through intelligent router
+        force_provider = None if request.provider == "auto" else request.provider
+        result = await llm_router.route_query(
             prompt=request.prompt,
-            model="llama3.2:1b"
+            force_provider=force_provider
         )
         
         # Calculate latency
@@ -197,24 +229,33 @@ async def query(request: QueryRequest):
         
         # Record metrics
         record_request(
-            provider="ollama",
+            provider=result["provider"],
             status="success",
             duration=latency,
-            cache_hit=False,
+            cache_hit=False,  # No caching yet (Phase 2B)
             tokens=result["tokens"]
         )
         
-        # Build response
+        # Build enriched response
         response = QueryResponse(
             response=result["response"],
-            provider="ollama",
+            provider=result["provider"],
             model=result["model"],
             cached=False,
             latency_ms=latency * 1000,
-            tokens_used=result["tokens"]
+            tokens_used=result["tokens"],
+            complexity_score=result.get("complexity_score", 0),
+            complexity_category=result.get("complexity_category", "unknown"),
+            fallback_used=result.get("fallback_used", False)
         )
         
-        logger.info(f"Query processed in {latency*1000:.2f}ms, {result['tokens']} tokens")
+        logger.info(
+            f"Query processed: {result['provider']} ({result['complexity_category']}) "
+            f"in {latency*1000:.2f}ms, {result['tokens']} tokens"
+        )
+        
+        if result.get("fallback_used"):
+            logger.warning(f"Fallback was used - primary provider failed")
         
         return response
         
@@ -222,7 +263,7 @@ async def query(request: QueryRequest):
         # Record error
         latency = time.time() - start_time
         record_request(
-            provider="ollama",
+            provider="unknown",
             status="error",
             duration=latency,
             cache_hit=False,

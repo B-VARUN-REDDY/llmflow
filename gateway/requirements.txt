@@ -6,7 +6,7 @@ pydantic-settings==2.1.0
 
 # LLM Providers
 openai==1.10.0  # Used for Ollama and OpenAI-compatible APIs
-google-generativeai==0.3.2
+google-generativeai>=0.8.0
 groq==0.4.1
 
 # Monitoring
