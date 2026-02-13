@@ -27,6 +27,7 @@ from routers.llm_router import LLMRouter
 from routers.cache_manager import CacheManager
 from routers.semantic_cache import SemanticCache
 from routers.complexity_classifier import classifier
+from database.db_client import DatabaseClient
 
 # Configure logging
 logging.basicConfig(
@@ -69,10 +70,11 @@ gemini_client: GeminiClient = None
 llm_router: LLMRouter = None
 cache_manager: CacheManager = None
 semantic_cache: SemanticCache = None
+db_client: DatabaseClient = None
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global ollama_client, groq_client, gemini_client, llm_router, cache_manager, semantic_cache
+    global ollama_client, groq_client, gemini_client, llm_router, cache_manager, semantic_cache, db_client
     
     logger.info("🚀 LLMFlow Gateway starting up...")
     
@@ -92,7 +94,17 @@ async def lifespan(app: FastAPI):
     semantic_cache.initialize()
     cache_manager.semantic_cache = semantic_cache  # Link to cache manager
     
-    # 3. Initialize Ollama
+    # 3. Initialize Database
+    db_client = DatabaseClient(
+        host=settings.postgres_host,
+        port=settings.postgres_port,
+        database=settings.postgres_db,
+        user=settings.postgres_user,
+        password=settings.postgres_password
+    )
+    await db_client.connect()
+    
+    # 4. Initialize Ollama
     ollama_client = OllamaClient(base_url=settings.ollama_base_url)
     if await ollama_client.check_health():
         logger.info("✅ Ollama connection successful")
@@ -101,7 +113,7 @@ async def lifespan(app: FastAPI):
     else:
         logger.warning("⚠️ Ollama not responding")
     
-    # 4. Initialize Groq
+    # 5. Initialize Groq
     if settings.groq_api_key:
         try:
             groq_client = GroqClient(api_key=settings.groq_api_key)
@@ -111,7 +123,7 @@ async def lifespan(app: FastAPI):
     else:
         logger.info("ℹ️ Groq API key not provided")
     
-    # 5. Initialize Gemini
+    # 6. Initialize Gemini
     if settings.gemini_api_key:
         try:
             gemini_client = GeminiClient(api_key=settings.gemini_api_key)
@@ -121,7 +133,7 @@ async def lifespan(app: FastAPI):
     else:
         logger.info("ℹ️ Gemini API key not provided")
     
-    # 6. Initialize Router
+    # 7. Initialize Router
     llm_router = LLMRouter(
         ollama_client=ollama_client,
         groq_client=groq_client,
@@ -141,12 +153,15 @@ async def lifespan(app: FastAPI):
     logger.info(f"📊 Active providers: {[k for k, v in llm_router.providers_available.items() if v]}")
     logger.info(f"💾 Cache: {'Enabled' if cache_manager.redis_client else 'Disabled'}")
     logger.info(f"🧠 Semantic cache: {'Enabled' if semantic_cache.ready else 'Disabled'}")
+    logger.info(f"🗄️ Database: {'Connected' if db_client and db_client.pool else 'Disabled'}")
     
     yield
     
     logger.info("👋 LLMFlow Gateway shutting down...")
     await ollama_client.close()
     await cache_manager.close()
+    if db_client:
+        await db_client.close()
 
 
 # ============================================================================
@@ -229,6 +244,22 @@ async def query(request: QueryRequest):
                 cache_type=cache_type
             )
             
+            # Log to database
+            if db_client:
+                await db_client.log_query(
+                    prompt=request.prompt,
+                    response=cached_response["response"],
+                    provider=cached_response["provider"],
+                    model=cached_response["model"],
+                    tokens_used=cached_response["tokens"],
+                    latency_ms=latency * 1000,
+                    cached=True,
+                    cache_type=cache_type,
+                    similarity_score=similarity if cache_type == "semantic" else None,
+                    complexity_score=classification["score"],
+                    complexity_category=classification["category"]
+                )
+            
             return QueryResponse(
                 response=cached_response["response"],
                 provider=cached_response["provider"],
@@ -270,6 +301,21 @@ async def query(request: QueryRequest):
             tokens=result["tokens"],
             cache_type="none"
         )
+        
+        # Log to database
+        if db_client:
+            await db_client.log_query(
+                prompt=request.prompt,
+                response=result["response"],
+                provider=result["provider"],
+                model=result["model"],
+                tokens_used=result["tokens"],
+                latency_ms=latency * 1000,
+                cached=False,
+                complexity_score=result.get("complexity_score", 0),
+                complexity_category=result.get("complexity_category", "unknown"),
+                fallback_used=result.get("fallback_used", False)
+            )
         
         response = QueryResponse(
             response=result["response"],
@@ -319,6 +365,42 @@ async def cache_clear():
         return {"error": "Cache manager not initialized"}
     deleted = await cache_manager.clear()
     return {"status": "success", "deleted_entries": deleted}
+
+
+# ============================================================================
+# ANALYTICS ENDPOINTS
+# ============================================================================
+
+@app.get("/analytics/recent")
+async def analytics_recent(limit: int = 100):
+    """Get recent queries from database."""
+    if not db_client or not db_client.pool:
+        return {"error": "Database not connected"}
+    return await db_client.get_recent_queries(limit)
+
+
+@app.get("/analytics/cache")
+async def analytics_cache():
+    """Get cache effectiveness stats from database."""
+    if not db_client or not db_client.pool:
+        return {"error": "Database not connected"}
+    return await db_client.get_cache_stats()
+
+
+@app.get("/analytics/cost")
+async def analytics_cost(days: int = 7):
+    """Get cost analysis from database."""
+    if not db_client or not db_client.pool:
+        return {"error": "Database not connected"}
+    return await db_client.get_cost_analysis(days)
+
+
+@app.get("/analytics/complexity")
+async def analytics_complexity():
+    """Get complexity distribution from database."""
+    if not db_client or not db_client.pool:
+        return {"error": "Database not connected"}
+    return await db_client.get_complexity_distribution()
 
 
 # ============================================================================
