@@ -48,11 +48,11 @@ graph TB
     Gateway --> Postgres[(PostgreSQL<br/>Query Logs)]
     Gateway --> Redis[(Redis<br/>Cache + Embeddings)]
     
-    style Cache fill:#90EE90
-    style Ollama fill:#87CEEB
-    style Groq fill:#FFB6C1
-    style Gemini fill:#DDA0DD
-    style Metrics fill:#FFD700
+    style Cache fill:#2d6a4f,color:#fff
+    style Ollama fill:#1b4965,color:#fff
+    style Groq fill:#7b2d26,color:#fff
+    style Gemini fill:#5a189a,color:#fff
+    style Metrics fill:#b8860b,color:#fff
 ```
 
 ### Key Components
