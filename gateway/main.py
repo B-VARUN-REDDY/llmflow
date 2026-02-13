@@ -225,7 +225,8 @@ async def query(request: QueryRequest):
                 status="success",
                 duration=latency,
                 cache_hit=True,
-                tokens=0
+                tokens=cached_response["tokens"],
+                cache_type=cache_type
             )
             
             return QueryResponse(
@@ -261,13 +262,13 @@ async def query(request: QueryRequest):
             model=result["model"]
         )
         
-        # Record metrics
         record_request(
             provider=result["provider"],
             status="success",
             duration=latency,
             cache_hit=False,
-            tokens=result["tokens"]
+            tokens=result["tokens"],
+            cache_type="none"
         )
         
         response = QueryResponse(

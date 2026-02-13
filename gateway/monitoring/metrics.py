@@ -30,15 +30,28 @@ llm_requests_total = Counter(
 # Cache performance metrics
 llm_cache_hits_total = Counter(
     'llm_cache_hits_total',
-    'Total number of cache hits'
+    'Total number of cache hits',
+    ['cache_type']  # 'exact' or 'semantic'
 )
-# Question answered: "Is caching working? How often?"
 
 llm_cache_misses_total = Counter(
     'llm_cache_misses_total',
     'Total number of cache misses'
 )
-# Question answered: "How many requests actually hit the LLMs?"
+
+
+# Cost tracking metrics
+llm_cost_saved_total = Counter(
+    'llm_cost_saved_total',
+    'Estimated cost saved by caching (USD)',
+    ['provider']
+)
+
+llm_estimated_cost_total = Counter(
+    'llm_estimated_cost_total',
+    'Estimated API cost incurred (USD)',
+    ['provider']
+)
 
 
 # Token usage tracking (for cost calculation)
@@ -124,27 +137,38 @@ def get_cache_hit_rate() -> float:
     return hits / total
 
 
-def record_request(provider: str, status: str, duration: float, cache_hit: bool, tokens: int = 0):
+# Provider cost per 1K tokens (USD) - approximate pricing
+PROVIDER_COSTS = {
+    'ollama': 0.0,       # Free (local)
+    'groq': 0.0003,      # ~$0.30 per 1M tokens (free tier)
+    'gemini': 0.00025,   # ~$0.25 per 1M tokens (flash)
+}
+
+
+def estimate_cost(provider: str, tokens: int) -> float:
+    """Estimate the cost of an LLM call in USD."""
+    cost_per_1k = PROVIDER_COSTS.get(provider, 0.001)
+    return (tokens / 1000) * cost_per_1k
+
+
+def record_request(
+    provider: str,
+    status: str,
+    duration: float,
+    cache_hit: bool,
+    tokens: int = 0,
+    cache_type: str = "none"
+):
     """
-    Convenience function to record a complete request.
-    
-    This updates ALL relevant metrics in one call, ensuring consistency.
+    Record a complete request with all metrics including cost.
     
     Args:
         provider: Which LLM provider handled this request
-        status: 'success', 'error', 'rate_limited', etc.
-        duration: How long the request took (seconds)
+        status: 'success', 'error', etc.
+        duration: Request duration in seconds
         cache_hit: Was this served from cache?
-        tokens: How many tokens were used (0 if cached)
-    
-    Example usage:
-        record_request(
-            provider='ollama',
-            status='success',
-            duration=0.45,
-            cache_hit=False,
-            tokens=150
-        )
+        tokens: Tokens used (0 if cached)
+        cache_type: 'none', 'exact', or 'semantic'
     """
     # Record the request
     llm_requests_total.labels(provider=provider, status=status).inc()
@@ -159,8 +183,14 @@ def record_request(provider: str, status: str, duration: float, cache_hit: bool,
     if tokens > 0:
         llm_tokens_used_total.labels(provider=provider).inc(tokens)
     
-    # Record cache hit/miss
+    # Record cache hit/miss + cost
     if cache_hit:
-        llm_cache_hits_total.inc()
+        llm_cache_hits_total.labels(cache_type=cache_type).inc()
+        # Calculate cost saved by caching
+        saved = estimate_cost(provider, tokens) if tokens > 0 else estimate_cost(provider, 150)  # estimate 150 tokens
+        llm_cost_saved_total.labels(provider=provider).inc(saved)
     else:
         llm_cache_misses_total.inc()
+        # Record actual cost
+        cost = estimate_cost(provider, tokens)
+        llm_estimated_cost_total.labels(provider=provider).inc(cost)
