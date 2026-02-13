@@ -39,7 +39,7 @@ class SemanticCache:
     
     def __init__(
         self,
-        similarity_threshold: float = 0.85,
+        similarity_threshold: float = 0.80,
         max_entries: int = 1000
     ):
         """
@@ -190,7 +190,7 @@ class SemanticCache:
                     )
                     return (result, best_score)
             
-            logger.debug(
+            logger.info(
                 f"🧠 Semantic cache MISS. Best similarity: {best_score:.3f} "
                 f"(threshold: {self.similarity_threshold})"
             )

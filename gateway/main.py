@@ -86,7 +86,7 @@ async def lifespan(app: FastAPI):
     
     # 2. Initialize Semantic Cache
     semantic_cache = SemanticCache(
-        similarity_threshold=0.85,
+        similarity_threshold=0.80,
         max_entries=1000
     )
     semantic_cache.initialize()
