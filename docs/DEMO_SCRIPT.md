@@ -18,7 +18,7 @@ docker-compose up -d
 **Step 2 — Clear the cache for a clean demo**
 In the same terminal, run:
 ```
-curl -X POST http://localhost:8000/cache/clear
+curl.exe -X POST http://localhost:8000/cache/clear
 ```
 
 **Step 3 — Open these files in Antigravity IDE editor tabs (click each file in the sidebar)**
@@ -91,7 +91,7 @@ Stay in **Antigravity IDE** with the **terminal panel** visible and large enough
 
 ### What to run in the terminal:
 ```
-curl -s -X POST http://localhost:8000/query -H "Content-Type: application/json" -d "{\"prompt\": \"What is 2+2?\"}" | python -m json.tool
+curl.exe -s -X POST http://localhost:8000/query -H "Content-Type: application/json" -d "{\"prompt\": \"What is 2+2?\"}" | python -m json.tool
 ```
 
 Wait for the response to appear.
@@ -101,7 +101,7 @@ Wait for the response to appear.
 
 ### What to run next:
 ```
-curl -s -X POST http://localhost:8000/query -H "Content-Type: application/json" -d "{\"prompt\": \"Analyze the trade-offs between consistency and availability in distributed systems using the CAP theorem\"}" | python -m json.tool
+curl.exe -s -X POST http://localhost:8000/query -H "Content-Type: application/json" -d "{\"prompt\": \"Analyze the trade-offs between consistency and availability in distributed systems using the CAP theorem\"}" | python -m json.tool
 ```
 
 Wait for the response to appear.
@@ -123,7 +123,7 @@ Stay in **Antigravity IDE** with the **terminal panel** visible.
 
 ### What to run (Query 1 — cache miss):
 ```
-curl -s -X POST http://localhost:8000/query -H "Content-Type: application/json" -d "{\"prompt\": \"What is artificial intelligence?\"}" | python -m json.tool
+curl.exe -s -X POST http://localhost:8000/query -H "Content-Type: application/json" -d "{\"prompt\": \"What is artificial intelligence?\"}" | python -m json.tool
 ```
 
 Wait for response.
@@ -133,7 +133,7 @@ Wait for response.
 
 ### What to run (Query 2 — exact cache hit):
 ```
-curl -s -X POST http://localhost:8000/query -H "Content-Type: application/json" -d "{\"prompt\": \"What is artificial intelligence?\"}" | python -m json.tool
+curl.exe -s -X POST http://localhost:8000/query -H "Content-Type: application/json" -d "{\"prompt\": \"What is artificial intelligence?\"}" | python -m json.tool
 ```
 
 Wait for response.
@@ -143,7 +143,7 @@ Wait for response.
 
 ### What to run (Query 3 — SEMANTIC cache hit):
 ```
-curl -s -X POST http://localhost:8000/query -H "Content-Type: application/json" -d "{\"prompt\": \"Explain artificial intelligence to me\"}" | python -m json.tool
+curl.exe -s -X POST http://localhost:8000/query -H "Content-Type: application/json" -d "{\"prompt\": \"Explain artificial intelligence to me\"}" | python -m json.tool
 ```
 
 Wait for response.
@@ -202,7 +202,7 @@ Switch back to the **Antigravity terminal panel**.
 
 ### What to run:
 ```
-curl -s http://localhost:8000/analytics/cache | python -m json.tool
+curl.exe -s http://localhost:8000/analytics/cache | python -m json.tool
 ```
 
 Wait for response.
@@ -212,7 +212,7 @@ Wait for response.
 
 ### What to run next:
 ```
-curl -s http://localhost:8000/analytics/complexity | python -m json.tool
+curl.exe -s http://localhost:8000/analytics/complexity | python -m json.tool
 ```
 
 Wait for response.
