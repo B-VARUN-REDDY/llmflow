@@ -133,7 +133,7 @@ Wait for response.
 
 ### What to run (Query 2 — exact cache hit):
 ```
-curl.exe -s -X POST http://localhost:8000/query -H "Content-Type: application/json" -d "{\"prompt\": \"What is artificial intelligence?\"}" | python -m json.tool
+curl.exe -s -X POST http://localhost:8000/query -H "Content-Type: application/json" -d '{\"prompt\": \"What is artificial intelligence?\"}' | python -m json.tool
 ```
 
 Wait for response.
