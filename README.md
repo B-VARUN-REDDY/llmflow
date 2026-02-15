@@ -8,6 +8,8 @@
 
 **Built to showcase:** Senior ML Engineer | MLOps Engineer | ML Platform Engineer capabilities
 
+### 🎥 [Watch the Full Demo (5 min)](docs/LLMFlow_demo.mp4)
+
 ---
 
 ## 🎯 What Makes This Project Stand Out
